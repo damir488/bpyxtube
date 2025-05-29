@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Брухтуб</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 0; background: #f9f9f9; color: #222;
+    }
+    header {
+      background: #ff0000;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+    }
+    #searchInput {
+      padding: 5px 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      outline: none;
+      width: 250px;
+    }
+    #addVideoBtn {
+      background: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #ff0000;
+    }
+    #videos {
+      max-width: 1000px;
+      margin: 20px auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit,minmax(320px,1fr));
+      gap: 20px;
+    }
+    .video-card {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+    }
+    .video-card iframe {
+      width: 100%;
+      height: 180px;
+      border: none;
+    }
+    .video-info {
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .video-title {
+      font-weight: bold;
+      font-size: 16px;
+      flex-grow: 1;
+      margin-right: 10px;
+    }
+    .fav-btn {
+      font-size: 24px;
+      cursor: pointer;
+      color: #ccc;
+      user-select: none;
+      transition: color 0.3s;
+    }
+    .fav-btn.fav {
+      color: #ff0000;
+    }
+    /* Popup */
+    #addVideoPopup {
+      position: fixed;
+      top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #addVideoPopup.visible {
+      display: flex;
+    }
+    #addVideoForm {
+      background: white;
+      padding: 25px 30px;
+      border-radius: 10px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    #addVideoForm input {
+      padding: 8px 12px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    #addVideoForm button {
+      padding: 10px 15px;
+      border: none;
+      background: #ff0000;
+      color: #fff;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #addVideoForm button:hover {
+      background: #cc0000;
+    }
+    #closePopupBtn {
+      background: #555;
+      margin-top: 5px;
+    }
+    @media (max-width: 400px) {
+      #searchInput {
+        width: 150px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Брухтуб</h1>
+  <input id="searchInput" placeholder="Поиск видео..." />
+  <button id="addVideoBtn">Добавить видео</button>
+</header>
+
+<main>
+  <div id="videos"></div>
+</main>
+
+<div id="addVideoPopup">
+  <form id="addVideoForm">
+    <h2>Добавить новое видео</h2>
+    <input type="text" id="videoUrl" placeholder="Ссылка на видео YouTube (полностью)"  reguired  />
+
+
+    <input type="text" id="videoTitle" placeholder="Название видео" required />
+    <button type="submit">Добавить</button>
+    <button type="button" id="closePopupBtn">Отмена</button>
+  </form>
+</div>
+
+<script>
+  // Ключ для localStorage
+  const storageKey = 'bruhtubeVideos';
+
+  // При старте загрузим список видео из localStorage или возьмем базу
+  const defaultVideos = [
+    {title: 'Rick Astley - Never Gonna Give You Up', id: 'dQw4w9WgXcQ'},
+    {title: 'Daft Punk - Get Lucky', id: '5NV6Rdv1a3I'},
+    {title: 'Медуза - Проститься', id: 'someFakeID'}
+  ];
+
+  // Загружаем видео из localStorage
+  function loadVideos() {
+    const data = localStorage.getItem(storageKey);
+    if(data) {
+      try { return JSON.parse(data); }
+      catch(e) { return defaultVideos; }
+    }
+    return defaultVideos;
+  }
+
+  // Сохраняем видео
+  function saveVideos(videos) {
+    localStorage.setItem(storageKey, JSON.stringify(videos));
+  }
+
+  // Список избранных видео (сохраняется в localStorage)
+  const favKey = 'bruhtubeFavs';
+
+  function loadFavs() {
+    const data = localStorage.getItem(favKey);
+    if(data) {
+      try { return JSON.parse(data); } catch { return []; }
+    }
+    return [];
+  }
+
+  function saveFavs(favs) {
+    localStorage.setItem(favKey, JSON.stringify(favs));
+  }
+
+  // Главные переменные
+  let videos = loadVideos();
+  let favs = loadFavs();
+
+  const videosContainer = document.getElementById('videos');
+  const searchInput = document.getElementById('searchInput');
+  const addVideoBtn = document.getElementById('addVideoBtn');
+  const addVideoPopup = document.getElementById('addVideoPopup');
+  const addVideoForm = document.getElementById('addVideoForm');
+  const videoUrlInput = document.getElementById('videoUrl');
+  const videoTitleInput = document.getElementById('videoTitle');
+  const closePopupBtn = document.getElementById('closePopupBtn');
+
+  function renderVideos(filter = '') {
+    videosContainer.innerHTML = '';
+    const filtered = videos.filter(v =>
+      v.title.toLowerCase().includes(filter.toLowerCase())
+    );
+    if(filtered.length === 0) {
+      videosContainer.innerHTML = '<p style="text-align:center; color:#666;">Видео не найдены</p>';
+      return;
+    }
+    filtered.forEach(v => {
+      const isFav = favs.includes(v.id);
+      const videoCard = document.createElement('div');
+      videoCard.className = 'video-card';
+      videoCard.innerHTML = `
+        <iframe src="https://www.youtube.com/embed/${v.id}" allowfullscreen></iframe>
+        <div class="video-info">
+          <div class="video-title" title="${v.title}">${v.title}</div>
+          <div class="fav-btn ${isFav ? "fav" : ""}" title="${isFav ? "Удалить из избранных" : "Добавить в избранные"}">&#9733;</div>
+        </div>
+      `;
+      // Обработчик избранного
+      videoCard.querySelector('.fav-btn').addEventListener('click', () => {
+        if(isFav) {
+          favs = favs.filter(fid => fid !== v.id);
+        } else {
+          favs.push(v.id);
+        }
+        saveFavs(favs);
+        renderVideos(searchInput.value);
+      });
+
+      videosContainer.appendChild(videoCard);
+    });
+  }
+
+  function extractVideoID(url) {
+    // Разбор стандартной ссылки YouTube
+    const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  }
+
+  addVideoBtn.onclick = () => {
+    addVideoPopup.classList.add('visible');
+    videoUrlInput.value = '';
+    videoTitleInput.value = '';
+  };
+
+  closePopupBtn.onclick = () => {
+    addVideoPopup.classList.remove('visible');
+  };
+
+  addVideoForm.onsubmit = (e) => {
+    e.preventDefault();
+    const url = videoUrlInput.value.trim();
+
+</script>
+
+</body>
+</html>
